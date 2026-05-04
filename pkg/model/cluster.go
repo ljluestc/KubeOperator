@@ -391,8 +391,7 @@ func (c Cluster) ParseInventory() *api.Inventory {
 	var chrony []string
 	var hosts []*api.Host
 	var lbhosts []string
-
-	i := 0
+	masterCount := 0
 	for _, node := range c.Nodes {
 		switch node.Role {
 		case constant.NodeRoleNameMaster:
@@ -408,14 +407,13 @@ func (c Cluster) ParseInventory() *api.Inventory {
 			if node.Role == constant.NodeRoleNameMaster {
 				lbhosts = append(lbhosts, node.Name)
 			}
-			if i == 0 {
-				hosts = append(hosts, node.ToKobeHost(c.NodeNameRule, "master"))
-				i = 1
-			} else {
-				hosts = append(hosts, node.ToKobeHost(c.NodeNameRule, "backup"))
-			}
+			var lbRole string
+			lbRole, masterCount = resolveLBRole(node.Role, masterCount)
+			hosts = append(hosts, node.ToKobeHost(c.NodeNameRule, lbRole))
 		} else {
-			hosts = append(hosts, node.ToKobeHost(c.NodeNameRule, "internal"))
+			var lbRole string
+			lbRole, masterCount = resolveLBRole(node.Role, masterCount)
+			hosts = append(hosts, node.ToKobeHost(c.NodeNameRule, lbRole))
 		}
 	}
 	if len(masters) > 0 {
@@ -466,6 +464,25 @@ func (c Cluster) ParseInventory() *api.Inventory {
 			},
 		},
 	}
+}
+
+func resolveLBRole(nodeRole string, currentMasterCount int) (role string, nextMasterCount int) {
+	nextMasterCount = currentMasterCount
+
+	if nodeRole != constant.NodeRoleNameMaster {
+		role = ""
+		return
+	}
+
+	nextMasterCount++
+
+	if currentMasterCount == 0 {
+		role = "master"
+	} else {
+		role = "backup"
+	}
+
+	return
 }
 
 func (c Cluster) loadNetworkVars(result map[string]string) {
