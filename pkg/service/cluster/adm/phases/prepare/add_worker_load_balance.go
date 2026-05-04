@@ -1,7 +1,9 @@
 package prepare
 
 import (
+	"fmt"
 	"io"
+	"time"
 
 	"github.com/KubeOperator/KubeOperator/pkg/service/cluster/adm/phases"
 	"github.com/KubeOperator/KubeOperator/pkg/util/kobe"
@@ -19,5 +21,28 @@ func (s AddWorkerLoadBalancerPhase) Name() string {
 }
 
 func (s AddWorkerLoadBalancerPhase) Run(b kobe.Interface, writer io.Writer) error {
-	return phases.RunPlaybookAndGetResult(b, prepareAddWorkerLoadBalancer, "", writer)
+	var lastErr error
+	for i := 1; i <= loadBalancerMaxAttempts; i++ {
+		if err := phases.RunPlaybookAndGetResult(b, prepareAddWorkerLoadBalancer, "", writer); err == nil {
+			return nil
+		} else {
+			lastErr = err
+		}
+
+		if i < loadBalancerMaxAttempts {
+			if writer != nil {
+				_, _ = fmt.Fprintf(
+					writer,
+					"add-worker load balancer phase failed (attempt %d/%d): %v, retrying in %s...\n",
+					i,
+					loadBalancerMaxAttempts,
+					lastErr,
+					loadBalancerRetryBackoff,
+				)
+			}
+			time.Sleep(loadBalancerRetryBackoff)
+		}
+	}
+
+	return lastErr
 }
