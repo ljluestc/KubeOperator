@@ -98,14 +98,11 @@ func (n ClusterNode) ToKobeHost(nodeNameRule string, role string) *api.Host {
 		apiHost.Name = n.Host.Ip
 	}
 
-	if role == constant.LbModeInternal {
-		return &apiHost
+	lbRole := ""
+	if n.Role == constant.NodeRoleNameMaster {
+		lbRole = role
 	}
-	lb_role := ""
-	if n.Role == "master" {
-		lb_role = role
-	}
-	apiHost.Vars["lb_role"] = lb_role
+	apiHost.Vars["lb_role"] = lbRole
 	return &apiHost
 }
 
